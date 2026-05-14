@@ -1,0 +1,19 @@
+{
+  "name": "Fitness Pro",
+  "short_name": "FitnessPro",
+  "description": "Training, nutrition, wellness, and tools.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c0f14",
+  "theme_color": "#22c55e",
+  "icons": [
+    {
+      "src": "pwa-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

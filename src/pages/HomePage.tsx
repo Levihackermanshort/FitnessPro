@@ -12,7 +12,10 @@ import {
   Zap,
   Timer,
   Apple,
-  Calculator
+  Calculator,
+  ClipboardList,
+  ListPlus,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -36,6 +39,33 @@ const features = [
     iconColor: 'text-primary',
   },
   {
+    href: '/programs',
+    title: 'Custom programs',
+    description: 'Pick exercises from the library, save templates, and run them with timers and logging.',
+    icon: ListPlus,
+    color: 'from-teal-500/20 to-teal-600/5',
+    borderColor: 'border-teal-500/20',
+    iconColor: 'text-teal-400',
+  },
+  {
+    href: '/log',
+    title: 'Workout log',
+    description: 'Streaks, weekly set volume, session history, and manual entries — all stored locally.',
+    icon: ClipboardList,
+    color: 'from-cyan-500/20 to-cyan-600/5',
+    borderColor: 'border-cyan-500/20',
+    iconColor: 'text-cyan-400',
+  },
+  {
+    href: '/wellness',
+    title: 'Wellness',
+    description: 'Sleep and steps charts plus mobility flows for desk, squat day, and post-run recovery.',
+    icon: Sparkles,
+    color: 'from-indigo-500/20 to-indigo-600/5',
+    borderColor: 'border-indigo-500/20',
+    iconColor: 'text-indigo-400',
+  },
+  {
     href: '/cardio',
     title: 'Cardio Protocols',
     description: 'HIIT, LISS, MISS, and Circuit training with heart rate zones, calorie estimates, and session timers.',
@@ -56,7 +86,7 @@ const features = [
   {
     href: '/tools',
     title: 'Fitness Tools',
-    description: '1RM calculator, BMI tracker, water intake logger, and workout progress tracker.',
+    description: '1RM and plate math, BMI, water intake logger, and workout progress tracker.',
     icon: Calculator,
     color: 'from-purple-500/20 to-purple-600/5',
     borderColor: 'border-purple-500/20',

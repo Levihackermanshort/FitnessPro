@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { nutritionPlans, type NutritionPlan, type MealOption } from '@/data/nutrition';
 import { cn } from '@/lib/utils';
@@ -16,10 +16,18 @@ import {
   Dumbbell,
   TrendingDown,
   Minus,
-  Check
+  Check,
+  Search,
+  ShoppingCart,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { deleteSavedMeal, saveSavedMeal, setShoppingListExtra, uid } from '@/lib/fitness-storage';
+import { useFitnessProfileData } from '@/hooks/use-fitness-data';
 
 /* ─── Meal Detail Modal ─── */
 function MealModal({ meal, category, onClose }: { meal: MealOption; category: string; onClose: () => void }) {
@@ -118,6 +126,217 @@ function MealModal({ meal, category, onClose }: { meal: MealOption; category: st
   );
 }
 
+/* ─── Saved meals (local) ─── */
+function SavedMealsPanel() {
+  const [data, refresh] = useFitnessProfileData();
+  const [q, setQ] = useState('');
+  const [name, setName] = useState('');
+  const [cal, setCal] = useState('');
+  const [p, setP] = useState('');
+  const [c, setC] = useState('');
+  const [f, setF] = useState('');
+
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return data.savedMeals;
+    return data.savedMeals.filter((m) => m.name.toLowerCase().includes(t));
+  }, [data.savedMeals, q]);
+
+  const add = () => {
+    const meal = {
+      id: uid('meal'),
+      name: name.trim() || 'Custom meal',
+      calories: parseInt(cal, 10) || 0,
+      protein: parseFloat(p) || 0,
+      carbs: parseFloat(c) || 0,
+      fats: parseFloat(f) || 0,
+      createdAt: new Date().toISOString(),
+    };
+    saveSavedMeal(meal);
+    setName('');
+    setCal('');
+    setP('');
+    setC('');
+    setF('');
+    refresh();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="glass rounded-xl border border-border p-6">
+        <h2 className="text-xl font-bold text-white mb-4">Save a meal</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <Label className="text-muted-foreground">Name</Label>
+            <Input className="mt-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="Post-workout bowl" />
+          </div>
+          <div>
+            <Label className="text-muted-foreground">Calories</Label>
+            <Input className="mt-1" type="number" value={cal} onChange={(e) => setCal(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-muted-foreground">Protein (g)</Label>
+            <Input className="mt-1" type="number" value={p} onChange={(e) => setP(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-muted-foreground">Carbs (g)</Label>
+            <Input className="mt-1" type="number" value={c} onChange={(e) => setC(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-muted-foreground">Fats (g)</Label>
+            <Input className="mt-1" type="number" value={f} onChange={(e) => setF(e.target.value)} />
+          </div>
+        </div>
+        <Button onClick={add}>Save meal</Button>
+      </div>
+
+      <div className="glass rounded-xl border border-border p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h2 className="text-xl font-bold text-white">My library</h2>
+          <div className="relative max-w-sm w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+        </div>
+        <div className="space-y-2 max-h-[420px] overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No saved meals yet.</p>
+          ) : (
+            filtered.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between gap-2 border border-border rounded-lg px-3 py-2 bg-secondary/30"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{m.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {m.calories} kcal · P{m.protein} C{m.carbs} F{m.fats}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-red-400 p-1"
+                  onClick={() => {
+                    deleteSavedMeal(m.id);
+                    refresh();
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Shopping list from planner snapshot ─── */
+function ShoppingListPanel() {
+  const [data, refresh] = useFitnessProfileData();
+  const [baseLines, setBaseLines] = useState<string[]>([]);
+  const [extraInput, setExtraInput] = useState(data.shoppingListExtra.join('\n'));
+
+  const mergedLines = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const line of baseLines) {
+      const k = line.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(line);
+    }
+    for (const line of data.shoppingListExtra) {
+      const k = line.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(line);
+    }
+    return out.sort((a, b) => a.localeCompare(b));
+  }, [baseLines, data.shoppingListExtra]);
+
+  useEffect(() => {
+    setExtraInput(data.shoppingListExtra.join('\n'));
+  }, [data.shoppingListExtra]);
+
+  useEffect(() => {
+    const load = () => {
+      try {
+        const raw = sessionStorage.getItem('fitnesspro:nutritionSnapshot');
+        if (!raw) {
+          setBaseLines([]);
+          return;
+        }
+        const parsed = JSON.parse(raw) as { meals: MealOption[] };
+        const bag = new Map<string, string>();
+        for (const meal of parsed.meals ?? []) {
+          for (const ing of meal.ingredients) {
+            const key = ing.trim().toLowerCase();
+            if (!bag.has(key)) bag.set(key, ing.trim());
+          }
+        }
+        setBaseLines([...bag.values()]);
+      } catch {
+        setBaseLines([]);
+      }
+    };
+    load();
+    const id = window.setInterval(load, 1200);
+    return () => clearInterval(id);
+  }, []);
+
+  const saveExtras = () => {
+    const items = extraInput
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setShoppingListExtra(items);
+    refresh();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="glass rounded-xl border border-border p-6">
+        <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+          <ShoppingCart className="w-5 h-5 text-primary" />
+          Shopping list
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Combines ingredients from your current planner day with your saved “always buy” lines.
+        </p>
+        {mergedLines.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Open Planner and pick meals, or add lines under “Always buy” below.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {mergedLines.map((line) => (
+              <li key={line} className="flex gap-2 text-sm text-foreground">
+                <span className="text-primary">•</span>
+                {line}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="glass rounded-xl border border-border p-6">
+        <h2 className="text-xl font-bold text-white mb-2">Always buy (per profile)</h2>
+        <p className="text-xs text-muted-foreground mb-3">One item per line — saved with your profile data.</p>
+        <textarea
+          className="w-full min-h-[120px] bg-secondary border border-border rounded-lg p-3 text-sm text-foreground"
+          value={extraInput}
+          onChange={(e) => setExtraInput(e.target.value)}
+        />
+        <Button className="mt-2" variant="secondary" onClick={saveExtras}>
+          Save extras
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Meal Planner ─── */
 function MealPlanner() {
   const [selectedPlan, setSelectedPlan] = useState<NutritionPlan>(nutritionPlans[0]);
@@ -127,6 +346,17 @@ function MealPlanner() {
   const [selectedMeal, setSelectedMeal] = useState<{ meal: MealOption; category: string } | null>(null);
   const [isShuffling, setIsShuffling] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        'fitnesspro:nutritionSnapshot',
+        JSON.stringify({ planId: selectedPlan.id, meals })
+      );
+    } catch {
+      /* storage full */
+    }
+  }, [selectedPlan.id, meals]);
 
   const handleShuffle = useCallback(() => {
     setIsShuffling(true);
@@ -650,28 +880,41 @@ export function NutritionPage() {
       exit={{ opacity: 0 }}
       className="max-w-7xl mx-auto px-4 py-8"
     >
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Nutrition Center</h1>
         <p className="text-muted-foreground">
-          Calculate your macros, generate shuffling meal plans, and hit your goals with
-          evidence-based nutrition.
+          Calculate your macros, generate shuffling meal plans, save your own meals, and build a
+          shopping list from your planner.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-        {/* Macro Calculator */}
-        <div className="lg:col-span-1">
-          <MacroCalculator />
-        </div>
+      <Tabs defaultValue="planner" className="mb-12">
+        <TabsList className="bg-secondary border border-border flex-wrap h-auto gap-1 p-1 mb-6">
+          <TabsTrigger value="planner">Planner</TabsTrigger>
+          <TabsTrigger value="saved">My meals</TabsTrigger>
+          <TabsTrigger value="shop">Shopping list</TabsTrigger>
+        </TabsList>
 
-        {/* Meal Planner */}
-        <div className="lg:col-span-2">
-          <MealPlanner />
-        </div>
-      </div>
+        <TabsContent value="planner" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <MacroCalculator />
+            </div>
+            <div className="lg:col-span-2">
+              <MealPlanner />
+            </div>
+          </div>
+        </TabsContent>
 
-      {/* Nutrition Tips */}
+        <TabsContent value="saved" className="mt-0">
+          <SavedMealsPanel />
+        </TabsContent>
+
+        <TabsContent value="shop" className="mt-0">
+          <ShoppingListPanel />
+        </TabsContent>
+      </Tabs>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           {

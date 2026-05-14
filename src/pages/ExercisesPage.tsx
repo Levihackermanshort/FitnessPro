@@ -19,8 +19,10 @@ import {
   RefreshCcw,
   AlertTriangle,
   Lightbulb,
-  X
+  X,
+  ExternalLink,
 } from 'lucide-react';
+import { exerciseMedia } from '@/data/exercise-media';
 import { Badge } from '@/components/ui/badge';
 
 const difficultyConfig = {
@@ -64,6 +66,17 @@ function ExerciseCard({ exercise }: { exercise: typeof exercises[0] }) {
 
         {/* Description */}
         <p className="text-sm text-muted-foreground mb-4">{exercise.description}</p>
+        {exerciseMedia[exercise.id] && (
+          <a
+            href={exerciseMedia[exercise.id].videoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-sm text-primary hover:underline mb-4"
+          >
+            <ExternalLink className="w-3.5 h-3.5 inline mr-1 align-text-bottom" />
+            {exerciseMedia[exercise.id].label}
+          </a>
+        )}
 
         {/* Muscles */}
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs mb-4">

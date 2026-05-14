@@ -9,7 +9,8 @@ import {
   Minus,
   GlassWater,
   Scale,
-  Dumbbell
+  Dumbbell,
+  Weight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -262,6 +263,86 @@ function BMICalculator() {
   );
 }
 
+/* ─── Plate loader (per side) ─── */
+function PlateBarLoader() {
+  const [target, setTarget] = useState('');
+  const [bar, setBar] = useState(20);
+  const result = useMemo(() => {
+    const t = parseFloat(target);
+    if (!Number.isFinite(t) || t <= bar) return null;
+    let perSide = (t - bar) / 2;
+    if (perSide < 0) return null;
+    const available = [25, 20, 15, 10, 5, 2.5, 1.25];
+    const counts: Record<number, number> = {};
+    for (const p of available) {
+      const n = Math.floor((perSide + 1e-6) / p);
+      if (n > 0) {
+        counts[p] = n;
+        perSide = Math.round((perSide - n * p) * 1000) / 1000;
+      }
+    }
+    return { counts, remainder: perSide };
+  }, [target, bar]);
+
+  return (
+    <div className="glass rounded-xl border border-border p-6">
+      <div className="flex items-center gap-2 mb-6">
+        <Weight className="w-5 h-5 text-primary" />
+        <h2 className="text-xl font-bold text-white">Plate math</h2>
+      </div>
+      <p className="text-sm text-muted-foreground mb-6">
+        Enter total bar weight and bar mass. Uses standard 25 → 1.25 kg plates per side (adjust in
+        your head for lb plates with the same steps).
+      </p>
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Total load</label>
+          <input
+            type="number"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-foreground"
+            placeholder="100"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Bar (kg)</label>
+          <input
+            type="number"
+            value={bar}
+            onChange={(e) => setBar(parseFloat(e.target.value) || 0)}
+            className="w-full bg-secondary border border-border rounded-lg px-3 py-2.5 text-foreground"
+          />
+        </div>
+      </div>
+      {result && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Per side: <span className="text-white font-semibold">{((parseFloat(target) - bar) / 2).toFixed(2)}</span> kg
+          </p>
+          <div className="space-y-2">
+            {Object.entries(result.counts).map(([plate, n]) => (
+              <div
+                key={plate}
+                className="flex justify-between text-sm border border-border rounded-lg px-3 py-2 bg-secondary/40"
+              >
+                <span className="text-muted-foreground">{plate} kg</span>
+                <span className="text-primary font-medium">×{n}</span>
+              </div>
+            ))}
+          </div>
+          {result.remainder > 0.05 && (
+            <p className="text-xs text-amber-400">
+              {result.remainder.toFixed(2)} kg remaining — use micro plates or round to nearest
+              available stack.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Water Tracker ─── */
 function WaterTracker() {
   const [glasses, setGlasses] = useState(() => {
@@ -502,9 +583,10 @@ export function ToolsPage() {
       </div>
 
       {/* Tools Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <OneRepMaxCalculator />
         <BMICalculator />
+        <PlateBarLoader />
         <WaterTracker />
         <ProgressTracker />
       </div>
