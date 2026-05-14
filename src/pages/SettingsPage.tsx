@@ -13,6 +13,7 @@ import {
   setReminders,
 } from '@/lib/fitness-storage';
 import type { FitnessExportPayload, ReminderConfig } from '@/lib/fitness-types';
+import { FirebaseAuthPanel } from '@/components/FirebaseAuthPanel';
 import { useFitnessProfileData } from '@/hooks/use-fitness-data';
 import { computeTrainingStreak, getWeekStartMonday, sessionsInWeekStarting, weeklySetVolume } from '@/lib/workout-log-utils';
 import { Button } from '@/components/ui/button';
@@ -87,7 +88,7 @@ export function SettingsPage() {
 
   useEffect(() => setMounted(true), []);
 
-  const reminders = useMemo(() => {
+  const reminders = useMemo((): ReminderConfig[] => {
     const cur = data.reminders;
     if (cur?.length) return cur;
     return defaultReminders;
@@ -157,10 +158,13 @@ export function SettingsPage() {
       exit={{ opacity: 0 }}
       className="max-w-3xl mx-auto px-4 py-8"
     >
-      <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
-      <p className="text-muted-foreground mb-8">
-        Appearance, local profiles, backup, reminders, and quick exports.
-      </p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
+        <p className="text-muted-foreground mb-6">
+          Appearance, local profiles, backup, reminders, and quick exports.
+        </p>
+        <FirebaseAuthPanel />
+      </div>
 
       <section className="glass rounded-xl border border-border p-6 mb-6">
         <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">

@@ -22,6 +22,14 @@ export interface ProfileData {
   shoppingListExtra: string[];
 }
 
+export type SerializedFullState = {
+  profiles: FitnessProfile[];
+  activeProfileId: string;
+  profileDataById: Record<string, ProfileData>;
+  progressTracker: string | null;
+  waterTracker: string | null;
+};
+
 const emptyProfileData = (): ProfileData => ({
   workoutSessions: [],
   customPrograms: [],
@@ -309,6 +317,146 @@ export function importPayload(payload: FitnessExportPayload, mode: 'merge' | 're
     localStorage.setItem('progress-tracker', JSON.stringify(payload.progressEntries));
   }
   window.dispatchEvent(new CustomEvent('fitnesspro:data'));
+}
+
+function mergeTwoProfilesData(cur: ProfileData, incoming: ProfileData): ProfileData {
+  const mergeSessions = [...incoming.workoutSessions, ...cur.workoutSessions];
+  const seenS = new Set<string>();
+  const workoutSessions = mergeSessions
+    .filter((s) => {
+      if (seenS.has(s.id)) return false;
+      seenS.add(s.id);
+      return true;
+    })
+    .slice(0, 500);
+  const customPrograms = [...incoming.customPrograms, ...cur.customPrograms].filter(
+    (p, i, arr) => arr.findIndex((x) => x.id === p.id) === i
+  );
+  const savedMeals = [...incoming.savedMeals, ...cur.savedMeals].filter(
+    (m, i, arr) => arr.findIndex((x) => x.id === m.id) === i
+  );
+  const recoveryDays = [...incoming.recoveryDays, ...cur.recoveryDays]
+    .filter((d, i, arr) => arr.findIndex((x) => x.date === d.date) === i)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 400);
+  const reminders = incoming.reminders?.length ? incoming.reminders : cur.reminders;
+  const shoppingListExtra = [
+    ...new Set([...(incoming.shoppingListExtra ?? []), ...(cur.shoppingListExtra ?? [])]),
+  ];
+  return {
+    workoutSessions,
+    customPrograms,
+    savedMeals,
+    recoveryDays,
+    reminders,
+    shoppingListExtra,
+  };
+}
+
+function mergeProgressJson(
+  local: string | null | undefined,
+  remote: string | null | undefined
+): string | null {
+  if (!local && !remote) return null;
+  if (!local) return remote ?? null;
+  if (!remote) return local ?? null;
+  try {
+    const a = safeParse<{ date: string; weight: number; bodyfat?: number }[]>(local, []);
+    const b = safeParse<{ date: string; weight: number; bodyfat?: number }[]>(remote, []);
+    const map = new Map<string, { date: string; weight: number; bodyfat?: number }>();
+    for (const x of [...a, ...b]) {
+      map.set(x.date, x);
+    }
+    return JSON.stringify([...map.values()].sort((p, q) => p.date.localeCompare(q.date)));
+  } catch {
+    return local;
+  }
+}
+
+function pickWater(a: string | null | undefined, b: string | null | undefined): string | null {
+  const na = a ? parseInt(a, 10) : 0;
+  const nb = b ? parseInt(b, 10) : 0;
+  if (na === 0 && nb === 0) return null;
+  return String(Math.max(na, nb));
+}
+
+export function serializeFullLocalState(): SerializedFullState {
+  const profiles = getProfiles();
+  const activeProfileId = getActiveProfileId();
+  const profileDataById: Record<string, ProfileData> = {};
+  for (const p of profiles) {
+    profileDataById[p.id] = getProfileData(p.id);
+  }
+  return {
+    profiles,
+    activeProfileId,
+    profileDataById,
+    progressTracker: localStorage.getItem('progress-tracker'),
+    waterTracker: localStorage.getItem('water-tracker'),
+  };
+}
+
+export function hydrateFullState(s: SerializedFullState) {
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(s.profiles));
+  localStorage.setItem(ACTIVE_KEY, s.activeProfileId);
+  const valid = new Set(s.profiles.map((p) => p.id));
+  for (const p of s.profiles) {
+    const data = s.profileDataById[p.id] ?? emptyProfileData();
+    localStorage.setItem(dataKey(p.id), JSON.stringify(data));
+  }
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k?.startsWith(DATA_PREFIX)) {
+      const id = k.slice(DATA_PREFIX.length);
+      if (!valid.has(id)) {
+        localStorage.removeItem(k);
+      }
+    }
+  }
+  if (s.progressTracker != null) {
+    localStorage.setItem('progress-tracker', s.progressTracker);
+  } else {
+    localStorage.removeItem('progress-tracker');
+  }
+  if (s.waterTracker != null) {
+    localStorage.setItem('water-tracker', s.waterTracker);
+  } else {
+    localStorage.removeItem('water-tracker');
+  }
+  window.dispatchEvent(new CustomEvent('fitnesspro:data'));
+  window.dispatchEvent(new CustomEvent('fitnesspro:profile'));
+}
+
+export function mergeRemoteFullState(remote: SerializedFullState) {
+  const local = serializeFullLocalState();
+  const byId = new Map<string, FitnessProfile>();
+  for (const p of local.profiles) {
+    byId.set(p.id, p);
+  }
+  for (const p of remote.profiles) {
+    if (!byId.has(p.id)) byId.set(p.id, p);
+  }
+  const mergedProfiles = [...byId.values()];
+  let active = local.activeProfileId;
+  if (!mergedProfiles.some((p) => p.id === active)) {
+    active = remote.activeProfileId;
+  }
+  if (!mergedProfiles.some((p) => p.id === active) && mergedProfiles[0]) {
+    active = mergedProfiles[0].id;
+  }
+  const profileDataById: Record<string, ProfileData> = {};
+  for (const p of mergedProfiles) {
+    const l = local.profileDataById[p.id] ?? emptyProfileData();
+    const r = remote.profileDataById[p.id] ?? emptyProfileData();
+    profileDataById[p.id] = mergeTwoProfilesData(l, r);
+  }
+  hydrateFullState({
+    profiles: mergedProfiles,
+    activeProfileId: active,
+    profileDataById,
+    progressTracker: mergeProgressJson(local.progressTracker, remote.progressTracker),
+    waterTracker: pickWater(local.waterTracker, remote.waterTracker),
+  });
 }
 
 export { uid };
